@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import math
 import colour
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox, scrolledtext
+from tkinter import filedialog, ttk, messagebox, scrolledtext, colorchooser
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 
@@ -64,8 +64,12 @@ class ColorCalculatorApp:
         self.color_frames = []
         self.color_labels = []
         self.color_canvases = []
+        self.compare_frames = []
+        self.compare_labels = []
+        self.compare_canvases = []
         
         for i in range(5):
+            # 主颜色显示
             color_frame = ttk.Frame(preview_frame)
             color_frame.pack(fill=tk.X, pady=2)
             
@@ -80,7 +84,25 @@ class ColorCalculatorApp:
             lab_label.pack(side=tk.LEFT, padx=5)
             self.color_labels.append(lab_label)
             
+            # 对比颜色按钮
+            ttk.Button(color_frame, text="选择对比颜色", 
+                      command=lambda i=i: self.select_compare_color(i)).pack(side=tk.LEFT, padx=5)
+            
+            # 对比颜色显示
+            compare_frame = ttk.Frame(color_frame)
+            compare_frame.pack(side=tk.LEFT, padx=10)
+            
+            fig = plt.Figure(figsize=(2, 0.5))
+            canvas = FigureCanvasTkAgg(fig, master=compare_frame)
+            canvas.get_tk_widget().pack(side=tk.LEFT)
+            self.compare_canvases.append(canvas)
+            
+            compare_label = ttk.Label(compare_frame, text="ΔE: -")
+            compare_label.pack(side=tk.LEFT, padx=5)
+            self.compare_labels.append(compare_label)
+            
             self.color_frames.append(color_frame)
+            self.compare_frames.append(compare_frame)
         
     def create_buttons(self):
         """创建操作按钮"""
@@ -204,6 +226,45 @@ class ColorCalculatorApp:
         L_val, a_val, b_val = Lab
         self.color_labels[index].config(text=f"L: {L_val:.2f}, a: {a_val:.2f}, b: {b_val:.2f}\nHue: {hue}°")
         
+        # 如果有对比颜色，更新ΔE值
+        if hasattr(self, 'compare_colors') and index in self.compare_colors:
+            compare_Lab = self.compare_colors[index]
+            delta_E = colour.delta_E(Lab, compare_Lab)
+            self.compare_labels[index].config(text=f"ΔE: {delta_E:.2f}")
+        
+    def select_compare_color(self, index):
+        """选择对比颜色"""
+        color = colorchooser.askcolor(title="选择对比颜色")[0]
+        if color:
+            # 将RGB转换为0-1范围
+            rgb = np.array(color) / 255.0
+            # 计算XYZ
+            XYZ = colour.sRGB_to_XYZ(rgb)
+            # 获取 D65 白点
+            whitepoint = colour.CCS_ILLUMINANTS["CIE 1931 2 Degree Standard Observer"]["D65"]
+            # 计算CIELab
+            Lab = colour.XYZ_to_Lab(XYZ, illuminant=whitepoint)
+            
+            # 存储对比颜色
+            if not hasattr(self, 'compare_colors'):
+                self.compare_colors = {}
+            self.compare_colors[index] = Lab
+            
+            # 更新对比颜色显示
+            fig = self.compare_canvases[index].figure
+            fig.clear()
+            ax = fig.add_subplot(111)
+            color_array = np.array([[rgb]])
+            ax.imshow(color_array)
+            ax.axis("off")
+            self.compare_canvases[index].draw()
+            
+            # 更新ΔE值
+            if hasattr(self, 'results'):
+                main_Lab = self.results[f"1.{index}"]["CIELab"]
+                delta_E = colour.delta_E(main_Lab, Lab)
+                self.compare_labels[index].config(text=f"ΔE: {delta_E:.2f}")
+
     def save_results(self):
         """保存结果"""
         if not hasattr(self, 'results'):
