@@ -294,7 +294,7 @@ class ColorCalculatorApp:
             
         self.plot_ax.set_xlabel("Wavelength (nm)")
         self.plot_ax.set_ylabel("Reflectance")
-        self.plot_ax.set_title("反射光谱")
+        self.plot_ax.set_title("Reflection spectrum")
         self.plot_ax.legend()
         self.plot_ax.grid(True)
         
@@ -314,7 +314,7 @@ class ColorCalculatorApp:
         
         self.plot_ax.set_xticks(x)
         self.plot_ax.set_xticklabels(sheets)
-        self.plot_ax.set_title("Lab值对比")
+        self.plot_ax.set_title("Lab Value")
         self.plot_ax.legend()
         
     def plot_rgb_values(self):
@@ -334,7 +334,7 @@ class ColorCalculatorApp:
         
         self.plot_ax.set_xticks(x)
         self.plot_ax.set_xticklabels(sheets)
-        self.plot_ax.set_title("RGB值对比")
+        self.plot_ax.set_title("RGB Value")
         self.plot_ax.legend()
         
     def plot_hsv_values(self):
@@ -343,8 +343,8 @@ class ColorCalculatorApp:
         h_values = [self.results[sheet]["Hue"] for sheet in sheets]
         
         self.plot_ax.plot(sheets, h_values, marker='o')
-        self.plot_ax.set_title("色相(Hue)变化")
-        self.plot_ax.set_ylabel("Hue (度)")
+        self.plot_ax.set_title("change of Hue")
+        self.plot_ax.set_ylabel("Hue")
         
     def save_results(self):
         """保存结果"""
