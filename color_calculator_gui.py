@@ -12,27 +12,32 @@ class ColorCalculatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("颜色计算器")
-        self.root.geometry("800x600")
+        self.root.geometry("1000x800")
         
-        # 创建主框架
-        self.main_frame = ttk.Frame(root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 创建Notebook实现多页面
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 文件选择区域
-        self.create_file_selection()
+        # 第一页：计算页面
+        self.calc_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.calc_frame, text="计算")
         
-        # 结果显示区域
-        self.create_result_display()
+        # 第二页：绘图页面
+        self.plot_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.plot_frame, text="绘图分析")
         
-        # 颜色预览区域
-        self.create_color_preview()
+        # 第一页组件
+        self.create_file_selection(self.calc_frame)
+        self.create_result_display(self.calc_frame)
+        self.create_color_preview(self.calc_frame)
+        self.create_buttons(self.calc_frame)
         
-        # 操作按钮
-        self.create_buttons()
+        # 第二页组件
+        self.create_plot_area(self.plot_frame)
         
-    def create_file_selection(self):
+    def create_file_selection(self, parent):
         """创建文件选择区域"""
-        file_frame = ttk.LabelFrame(self.main_frame, text="文件选择")
+        file_frame = ttk.LabelFrame(parent, text="文件选择")
         file_frame.pack(fill=tk.X, pady=5)
         
         # Excel文件选择
@@ -47,17 +52,17 @@ class ColorCalculatorApp:
         self.output_entry.grid(row=1, column=1, padx=5, pady=5)
         ttk.Button(file_frame, text="浏览...", command=self.select_output_dir).grid(row=1, column=2, padx=5, pady=5)
         
-    def create_result_display(self):
+    def create_result_display(self, parent):
         """创建结果显示区域"""
-        result_frame = ttk.LabelFrame(self.main_frame, text="计算结果")
+        result_frame = ttk.LabelFrame(parent, text="计算结果")
         result_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         self.result_text = scrolledtext.ScrolledText(result_frame, wrap=tk.WORD)
         self.result_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-    def create_color_preview(self):
+    def create_color_preview(self, parent):
         """创建颜色预览区域"""
-        preview_frame = ttk.LabelFrame(self.main_frame, text="颜色预览")
+        preview_frame = ttk.LabelFrame(parent, text="颜色预览")
         preview_frame.pack(fill=tk.BOTH, pady=5)
         
         # 创建5个颜色显示区域
@@ -82,9 +87,9 @@ class ColorCalculatorApp:
             
             self.color_frames.append(color_frame)
         
-    def create_buttons(self):
+    def create_buttons(self, parent):
         """创建操作按钮"""
-        button_frame = ttk.Frame(self.main_frame)
+        button_frame = ttk.Frame(parent)
         button_frame.pack(fill=tk.X, pady=5)
         
         ttk.Button(button_frame, text="开始计算", command=self.calculate).pack(side=tk.LEFT, padx=5)
@@ -164,6 +169,13 @@ class ColorCalculatorApp:
                     hsv = colour.RGB_to_HSV(rgb)
                     hue = round(hsv[0] * 360, 2)  # 转换为0-360度
                     
+                    # 计算ΔE值（与第一个样本比较）
+                    if i > 0:
+                        ref_Lab = results[sheet_names[0]]["CIELab"]
+                        delta_E = colour.delta_E(Lab, ref_Lab)
+                    else:
+                        delta_E = 0.0
+                    
                     # 更新颜色显示
                     self.update_color_display(i, rgb, Lab, hue)
                     
@@ -172,7 +184,8 @@ class ColorCalculatorApp:
                         "CIELab": Lab,
                         "sRGB": rgb,
                         "Hex Color": hex_color,
-                        "Hue": hue
+                        "Hue": hue,
+                        "ΔE": delta_E
                     }
                     
                     # 显示结果
@@ -180,10 +193,21 @@ class ColorCalculatorApp:
                     self.result_text.insert(tk.END, f"CIELab: {Lab}\n")
                     self.result_text.insert(tk.END, f"十六进制颜色: {hex_color}\n")
                     self.result_text.insert(tk.END, f"HSV Hue: {hue}°\n")
+                    self.result_text.insert(tk.END, f"ΔE: {delta_E:.2f}\n")
                     
                 except Exception as e:
                     self.result_text.insert(tk.END, f"❌ 读取 {sheet} 时发生错误: {e}\n")
                     
+            # 存储原始光谱数据
+            self.spectra_data = {}
+            for sheet in sheet_names:
+                if sheet in results:
+                    df = pd.read_excel(excel_path, sheet_name=sheet)
+                    self.spectra_data[sheet] = {
+                        'wavelengths': df["Wavelength"].astype(float).values,
+                        'reflectance': df["Reflectance"].astype(float).values
+                    }
+            
             self.results = results
             
         except Exception as e:
@@ -203,6 +227,124 @@ class ColorCalculatorApp:
         # 更新Lab值和Hue值显示
         L_val, a_val, b_val = Lab
         self.color_labels[index].config(text=f"L: {L_val:.2f}, a: {a_val:.2f}, b: {b_val:.2f}\nHue: {hue}°")
+        
+    def create_plot_area(self, parent):
+        """创建绘图分析区域"""
+        plot_frame = ttk.LabelFrame(parent, text="颜色分析图")
+        plot_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # 创建绘图区域
+        self.plot_fig = plt.Figure(figsize=(8, 4))
+        self.plot_ax = self.plot_fig.add_subplot(111)
+        self.plot_canvas = FigureCanvasTkAgg(self.plot_fig, master=plot_frame)
+        self.plot_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # 创建控制面板
+        control_frame = ttk.Frame(plot_frame)
+        control_frame.pack(fill=tk.X, pady=5)
+        
+        # 添加绘图类型选择
+        ttk.Label(control_frame, text="绘图类型:").pack(side=tk.LEFT, padx=5)
+        self.plot_type = tk.StringVar(value="Lab")
+        plot_types = ["Lab", "RGB", "HSV", "ΔE", "反射光谱"]
+        for ptype in plot_types:
+            ttk.Radiobutton(control_frame, text=ptype, variable=self.plot_type, 
+                           value=ptype).pack(side=tk.LEFT, padx=2)
+            
+        # 添加绘图按钮
+        ttk.Button(control_frame, text="更新图表", 
+                  command=self.update_plot).pack(side=tk.RIGHT, padx=5)
+        
+    def update_plot(self):
+        """更新绘图"""
+        if not hasattr(self, 'results'):
+            messagebox.showwarning("警告", "请先进行计算")
+            return
+            
+        self.plot_ax.clear()
+        plot_type = self.plot_type.get()
+        
+        # 根据选择类型绘制图表
+        if plot_type == "Lab":
+            self.plot_lab_values()
+        elif plot_type == "RGB":
+            self.plot_rgb_values()
+        elif plot_type == "HSV":
+            self.plot_hsv_values()
+        elif plot_type == "ΔE":
+            self.plot_delta_e_values()
+        elif plot_type == "反射光谱":
+            self.plot_reflectance_spectra()
+            
+        self.plot_canvas.draw()
+
+    def plot_reflectance_spectra(self):
+        """绘制反射光谱曲线"""
+        if not hasattr(self, 'spectra_data'):
+            messagebox.showwarning("警告", "请先进行计算")
+            return
+            
+        self.plot_ax.clear()
+        
+        # 绘制所有sheet的反射光谱
+        for sheet, data in self.spectra_data.items():
+            wavelengths = data['wavelengths']
+            reflectance = data['reflectance']
+            self.plot_ax.plot(wavelengths, reflectance, label=sheet)
+            
+        self.plot_ax.set_xlabel("Wavelength (nm)")
+        self.plot_ax.set_ylabel("Reflectance")
+        self.plot_ax.set_title("反射光谱")
+        self.plot_ax.legend()
+        self.plot_ax.grid(True)
+        
+    def plot_lab_values(self):
+        """绘制Lab值图表"""
+        sheets = list(self.results.keys())
+        L_values = [self.results[sheet]["CIELab"][0] for sheet in sheets]
+        a_values = [self.results[sheet]["CIELab"][1] for sheet in sheets]
+        b_values = [self.results[sheet]["CIELab"][2] for sheet in sheets]
+        
+        x = np.arange(len(sheets))
+        width = 0.2
+        
+        self.plot_ax.bar(x - width, L_values, width, label='L')
+        self.plot_ax.bar(x, a_values, width, label='a')
+        self.plot_ax.bar(x + width, b_values, width, label='b')
+        
+        self.plot_ax.set_xticks(x)
+        self.plot_ax.set_xticklabels(sheets)
+        self.plot_ax.set_title("Lab值对比")
+        self.plot_ax.legend()
+        
+    def plot_rgb_values(self):
+        """绘制RGB值图表"""
+        sheets = list(self.results.keys())
+        rgb_values = [self.results[sheet]["sRGB"] for sheet in sheets]
+        
+        # 将RGB值转换为0-255范围
+        rgb_values = np.array(rgb_values) * 255
+        
+        x = np.arange(len(sheets))
+        width = 0.2
+        
+        self.plot_ax.bar(x - width, rgb_values[:, 0], width, label='R')
+        self.plot_ax.bar(x, rgb_values[:, 1], width, label='G')
+        self.plot_ax.bar(x + width, rgb_values[:, 2], width, label='B')
+        
+        self.plot_ax.set_xticks(x)
+        self.plot_ax.set_xticklabels(sheets)
+        self.plot_ax.set_title("RGB值对比")
+        self.plot_ax.legend()
+        
+    def plot_hsv_values(self):
+        """绘制HSV值图表"""
+        sheets = list(self.results.keys())
+        h_values = [self.results[sheet]["Hue"] for sheet in sheets]
+        
+        self.plot_ax.plot(sheets, h_values, marker='o')
+        self.plot_ax.set_title("色相(Hue)变化")
+        self.plot_ax.set_ylabel("Hue (度)")
         
     def save_results(self):
         """保存结果"""
@@ -238,6 +380,7 @@ class ColorCalculatorApp:
                     f.write(f"CIELab: {data['CIELab']}\n")
                     f.write(f"十六进制颜色: {data['Hex Color']}\n")
                     f.write(f"HSV Hue: {data['Hue']}°\n")
+                    f.write(f"ΔE: {data['ΔE']:.2f}\n")
                     
             messagebox.showinfo("成功", f"结果已保存到：\n{output_dir}")
             
