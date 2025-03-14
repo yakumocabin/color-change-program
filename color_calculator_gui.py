@@ -12,7 +12,7 @@ class ColorCalculatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("颜色计算器")
-        self.root.geometry("1000x800")
+        self.root.geometry("800x800")
         
         # 创建Notebook实现多页面
         self.notebook = ttk.Notebook(root)
