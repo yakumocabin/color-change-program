@@ -342,9 +342,25 @@ class ColorCalculatorApp:
         sheets = list(self.results.keys())
         h_values = [self.results[sheet]["Hue"] for sheet in sheets]
         
-        self.plot_ax.plot(sheets, h_values, marker='o')
-        self.plot_ax.set_title("change of Hue")
+        # 绘制原始数据点
+        self.plot_ax.plot(sheets, h_values, 'o', label='Data points')
+        
+        # 计算线性趋势线（使用数值x轴）
+        x = np.array([float(sheet) for sheet in sheets])  # 将sheet名称转为数值
+        coeffs = np.polyfit(x, h_values, 1)
+        trendline = np.poly1d(coeffs)
+        
+        # 绘制趋势线
+        self.plot_ax.plot(sheets, trendline(x), 'r-', label='Trend line')
+        
+        # 显示趋势线公式
+        formula = f'y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
+        self.plot_ax.text(0.05, 0.95, formula, transform=self.plot_ax.transAxes,
+                        fontsize=10, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.5))
+        
+        self.plot_ax.set_title("Change of Hue with Trend Line")
         self.plot_ax.set_ylabel("Hue")
+        self.plot_ax.legend()
         
     def save_results(self):
         """保存结果"""
